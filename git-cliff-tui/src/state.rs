@@ -109,8 +109,9 @@ impl<'a> State<'a> {
 					.clone(),
 			)?
 			.0;
-			let changelog =
-				Changelog::new(changelog.releases.clone(), config.clone(), false)?;
+			let mut changelog =
+				Changelog::new(changelog.releases.clone(), config.clone())?;
+			changelog.add_remote_context()?;
 			let mut output = Vec::new();
 			git_cliff::write_changelog(
 				self.args.clone(),

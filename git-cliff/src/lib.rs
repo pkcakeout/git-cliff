@@ -589,7 +589,7 @@ pub fn generate_changelog(args: &mut Args) -> Result<Changelog<'static>> {
 				&args,
 			)?);
 		}
-		Changelog::new(releases, config.clone(), true)?
+		Changelog::new(releases, config.clone())?
 	};
 
 	Ok(changelog)
