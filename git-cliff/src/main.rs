@@ -1,7 +1,6 @@
 use clap::Parser;
 use git_cliff::args::Args;
 use git_cliff::{
-	check_new_version,
 	init_config,
 	logger,
 };
@@ -65,7 +64,7 @@ fn main() -> Result<()> {
 
 	// Check if there is a new version available.
 	#[cfg(feature = "update-informer")]
-	check_new_version();
+	git_cliff::check_new_version();
 
 	// Create the configuration file if init flag is given.
 	if let Some(path) = &args.init {
