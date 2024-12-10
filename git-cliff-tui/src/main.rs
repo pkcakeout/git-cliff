@@ -1,15 +1,9 @@
-use std::path::{
-	Path,
-	PathBuf,
-};
-
 use crate::{
 	event::{
 		Event,
 		EventHandler,
 	},
 	state::{
-		Config,
 		Result,
 		State,
 	},
@@ -23,14 +17,6 @@ use git_cliff::args::{
 	Args,
 	Parser,
 };
-use notify::{
-	RecursiveMode,
-	Watcher,
-};
-use ratatui::crossterm::event::{
-	DisableMouseCapture,
-	EnableMouseCapture,
-};
 
 fn main() -> Result<()> {
 	// Parse command-line arguments.
@@ -39,60 +25,33 @@ fn main() -> Result<()> {
 	// Create an application state.
 	let mut state = State::new(args.clone())?;
 
-	// Add default configuration file.
-	if Path::new("cliff.toml").exists() {
-		state.configs.insert(0, Config {
-			file: "cliff.toml".into(),
-			..Default::default()
-		});
-	}
-
-	// Add the configuration file from the command-line arguments.
-	if &args.config != &PathBuf::from("cliff.toml") {
-		if args.config.exists() {
-			state.configs.insert(0, Config {
-				file: args.config.to_string_lossy().to_string(),
-				..Default::default()
-			});
-		}
-	}
-
-	// Generate the changelog.
-	state.generate_changelog()?;
+	// Get the changelog data.
+	state.get_changelog_data()?;
 
 	// Initialize the terminal user interface.
 	let events = EventHandler::new(250);
 	let mut terminal = ratatui::init();
-	ratatui::crossterm::execute!(terminal.backend_mut(), EnableMouseCapture)?;
 
-	// Watch for file changes.
-	let sender = events.sender.clone();
-	let mut watcher =
-		notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-			match res {
-				Ok(event) => {
-					if event.kind.is_modify() {
-						sender
-							.send(Event::AutoGenerate)
-							.expect("failed to send event");
-					}
-				}
-				Err(e) => panic!("watch error: {e:?}"),
-			}
-		})?;
-
-	for config in state.configs.iter() {
-		let path = Path::new(&config.file);
-		if path.exists() {
-			watcher.watch(path, RecursiveMode::NonRecursive)?;
-		}
-	}
+	// TODO: Watch for file changes.
+	//
+	// let sender = events.sender.clone();
+	// let mut watcher =
+	// 	notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+	// 		match res {
+	// 			Ok(event) => {
+	// 				if event.kind.is_modify() {
+	// 					sender
+	// 						.send(Event::AutoGenerate)
+	// 						.expect("failed to send event");
+	// 				}
+	// 			}
+	// 			Err(e) => panic!("watch error: {e:?}"),
+	// 		}
+	// 	})?;
 
 	// Start the main loop.
 	while state.is_running {
-		// Render the user interface.
 		terminal.draw(|frame| ui::render(&mut state, frame))?;
-		// Handle events.
 		let event = events.next()?;
 		match event {
 			Event::Tick => state.tick(),
@@ -104,6 +63,7 @@ fn main() -> Result<()> {
 			Event::Mouse(_) => {}
 			Event::Resize(_, _) => {}
 			Event::Generate | Event::AutoGenerate => {
+				state.process_changelog()?;
 				// if event == Event::AutoGenerate && !state.autoload {
 				// 	continue;
 				// }
@@ -127,22 +87,9 @@ fn main() -> Result<()> {
 				// 		.expect("failed to send event");
 				// });
 			}
-			Event::RenderMarkdown(_) => {
-				// state.is_generating = false;
-				// state.changelog = changelog;
-				// state.markdown.component =
-				// Some(md_tui::parser::parse_markdown( 	None,
-				// 	&state.changelog,
-				// 	state.markdown.area.width,
-				// ));
-			}
-			Event::Error(e) => {
-				state.error = Some(e);
-			}
 		}
 	}
 
 	ratatui::restore();
-	ratatui::crossterm::execute!(terminal.backend_mut(), DisableMouseCapture)?;
 	Ok(())
 }

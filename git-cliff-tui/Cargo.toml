@@ -6,11 +6,10 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-ratatui = "0.28.1"
-md-tui = { version = "0.8.6", default-features = false }
-notify = { version = "6.1.1", default-features = false }
+ratatui = "0.29.0"
 copypasta = "0.10.1"
-throbber-widgets-tui = "0.7.0"
+throbber-widgets-tui = "0.8.0"
+tui-markdown = "0.3.0"
 
 [dependencies.git-cliff]
 version = "2.5.0" # managed by release.sh

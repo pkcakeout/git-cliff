@@ -34,10 +34,6 @@ pub enum Event {
 	Generate,
 	/// Generate changelog when the file changes.
 	AutoGenerate,
-	/// Render markdown.
-	RenderMarkdown(String),
-	/// Error event.
-	Error(String),
 }
 
 /// Terminal event handler.
@@ -122,7 +118,7 @@ pub fn handle_key_events(
 		KeyCode::Char('c') | KeyCode::Char('C') => {
 			if key_event.modifiers == KeyModifiers::CONTROL {
 				state.quit();
-			} else if let Some(contents) = state.get_changelog_contents()? {
+			} else if let Some(contents) = state.generate_changelog()? {
 				if let Some(clipboard) = &mut state.clipboard {
 					if let Err(e) = clipboard.set_contents(contents) {
 						eprintln!("Failed to set clipboard contents: {e}");
@@ -132,24 +128,22 @@ pub fn handle_key_events(
 		}
 		KeyCode::Char('k') | KeyCode::Char('K') | KeyCode::Up => {
 			state.list_state.select_previous();
-			state.process_changelog()?;
+			sender.send(Event::Generate)?;
 		}
 		KeyCode::Char('j') | KeyCode::Char('J') | KeyCode::Down => {
 			state.list_state.select_next();
-			state.process_changelog()?;
+			sender.send(Event::Generate)?;
 		}
 		KeyCode::Char('h') | KeyCode::Char('H') | KeyCode::Left => {
-			state.markdown.scroll_index =
-				state.markdown.scroll_index.saturating_sub(1);
+			state.scroll_index = state.scroll_index.saturating_sub(1);
 		}
 		KeyCode::Char('l') | KeyCode::Char('L') | KeyCode::Right => {
-			if key_event.modifiers == KeyModifiers::CONTROL {
-				state.markdown.scroll_index =
-					state.markdown.scroll_index.saturating_add(1);
-			} else {
-				state.args.latest = !state.args.latest;
-				sender.send(Event::Generate)?;
-			}
+			state.scroll_index = state.scroll_index.saturating_add(1);
+
+			// TODO: Tweak latest flag
+			//
+			// state.args.latest = !state.args.latest;
+			// sender.send(Event::Generate)?;
 		}
 		KeyCode::Enter => sender.send(Event::Generate)?,
 		KeyCode::Char('a') | KeyCode::Char('A') => {

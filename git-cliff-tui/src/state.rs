@@ -2,8 +2,6 @@ use copypasta::ClipboardContext;
 use git_cliff::args::Args;
 use git_cliff::core::changelog::Changelog;
 use git_cliff::core::embed::BuiltinConfig;
-use md_tui::nodes::root::ComponentRoot;
-use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
 use std::error;
 use throbber_widgets_tui::ThrobberState;
@@ -11,78 +9,49 @@ use throbber_widgets_tui::ThrobberState;
 /// Application result type.
 pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
-/// Changelog configuration.
-#[derive(Debug, Default)]
-pub struct Config {
-	/// Name/path of the configuration.
-	pub file: String,
-}
-
-/// Markdown content.
-#[derive(Default)]
-pub struct Markdown {
-	/// Rendered component.
-	pub component:    Option<ComponentRoot>,
-	/// Widget area.
-	pub area:         Rect,
-	/// Selected config index.
-	pub config_index: usize,
-	/// Scroll index.
-	pub scroll_index: u16,
-}
-
-/// Is the application running?
 /// Application state.
 pub struct State<'a> {
 	/// git-cliff arguments.
-	pub args:           Args,
-	/// Is the application running?
-	pub is_running:     bool,
-	/// Configuration files.
-	pub configs:        Vec<Config>,
+	pub args:            Args,
+	/// Built-in configuration files.
+	pub builtin_configs: Vec<String>,
 	/// The state of the list.
-	pub list_state:     ListState,
-	/// Changelog.
-	pub changelog:      Option<Changelog<'a>>,
-	/// Error message.
-	pub error:          Option<String>,
-	/// Rendered markdown.
-	pub markdown:       Markdown,
-	/// Autoload changes.
-	pub autoload:       bool,
+	pub list_state:      ListState,
+	/// Changelog object.
+	pub changelog:       Option<Changelog<'a>>,
+	/// Changelog contents.
+	pub contents:        String,
+	/// Scroll index.
+	pub scroll_index:    usize,
 	/// Clipboard context.
-	pub clipboard:      Option<ClipboardContext>,
-	/// Is the sidebar toggled?
-	pub is_toggled:     bool,
+	pub clipboard:       Option<ClipboardContext>,
 	/// Throbber state.
-	pub throbber_state: ThrobberState,
+	pub throbber_state:  ThrobberState,
 	/// Is generating?
-	pub is_generating:  bool,
+	pub is_generating:   bool,
+	/// Is the sidebar toggled?
+	pub is_toggled:      bool,
+	/// Autoload changes.
+	pub autoload:        bool,
+	/// Is the application running?
+	pub is_running:      bool,
 }
 
-impl<'a> State<'a> {
+impl State<'_> {
 	/// Constructs a new instance.
 	pub fn new(args: Args) -> Result<Self> {
-		let configs = BuiltinConfig::iter()
-			.map(|file| Config {
-				file: file.to_string(),
-			})
-			.collect();
+		let configs = BuiltinConfig::iter().map(|file| file.to_string()).collect();
 		Ok(Self {
 			args,
-			is_running: true,
-			is_toggled: true,
-			is_generating: false,
-			configs,
+			builtin_configs: configs,
 			list_state: {
 				let mut list_state = ListState::default();
 				list_state.select_first();
 				list_state
 			},
 			changelog: None,
-			error: None,
-			markdown: Markdown::default(),
-			autoload: true,
+			contents: String::new(),
+			scroll_index: 0,
 			throbber_state: ThrobberState::default(),
 			clipboard: match ClipboardContext::new() {
 				Ok(ctx) => Some(ctx),
@@ -91,21 +60,27 @@ impl<'a> State<'a> {
 					None
 				}
 			},
+			is_generating: false,
+			is_toggled: true,
+			autoload: true,
+			is_running: true,
 		})
 	}
 
 	/// Generates the changelog.
-	pub fn generate_changelog(&mut self) -> Result<()> {
+	///
+	/// This runs once the application starts for fetching the remote data if
+	/// necessary.
+	pub fn get_changelog_data(&mut self) -> Result<()> {
 		self.changelog = Some(git_cliff::generate_changelog(&mut self.args)?);
 		Ok(())
 	}
 
 	/// Returns the changelog contents.
-	pub fn get_changelog_contents(&mut self) -> Result<Option<String>> {
+	pub fn generate_changelog(&mut self) -> Result<Option<String>> {
 		if let Some(changelog) = &self.changelog {
-			let config = git_cliff::core::embed::BuiltinConfig::parse(
-				self.configs[self.list_state.selected().unwrap_or_default()]
-					.file
+			let config = BuiltinConfig::parse(
+				self.builtin_configs[self.list_state.selected().unwrap_or_default()]
 					.clone(),
 			)?
 			.0;
@@ -128,12 +103,8 @@ impl<'a> State<'a> {
 
 	/// Processes the changelog contents.
 	pub fn process_changelog(&mut self) -> Result<()> {
-		if let Some(contents) = &self.get_changelog_contents()? {
-			self.markdown.component = Some(md_tui::parser::parse_markdown(
-				None,
-				&contents,
-				self.markdown.area.width,
-			));
+		if let Some(contents) = &self.generate_changelog()? {
+			self.contents = contents.clone();
 		}
 		Ok(())
 	}
