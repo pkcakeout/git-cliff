@@ -124,6 +124,8 @@ pub struct Commit<'a> {
 	pub committer:     Signature,
 	/// Whether if the commit has two or more parents.
 	pub merge_commit:  bool,
+    	/// If the commit is a merge commit, this field contains the parents it
+    	pub merge_parents: Vec<Commit<'a>>,
 	/// Arbitrary data to be used with the `--from-context` CLI option.
 	pub extra:         Option<Value>,
 	/// Remote metadata of the commit.
@@ -185,6 +187,7 @@ impl<'a> From<&GitCommit<'a>> for Commit<'a> {
 			author: commit.author().into(),
 			committer: commit.committer().into(),
 			merge_commit: commit.parent_count() > 1,
+            		merge_parents: commit.parents().map(|p| Commit::from_no_parents(&p)).collect(),
 			..Default::default()
 		}
 	}
@@ -196,6 +199,18 @@ impl Commit<'_> {
 		Self {
 			id,
 			message,
+			..Default::default()
+		}
+	}
+
+	fn from_no_parents(commit: &GitCommit) -> Self {
+		Commit {
+			id: commit.id().to_string(),
+			message: commit.message().unwrap_or_default().to_string(),
+			author: commit.author().into(),
+			committer: commit.committer().into(),
+			merge_commit: commit.parent_count() > 1,
+            merge_parents: Vec::new(),
 			..Default::default()
 		}
 	}
@@ -474,6 +489,7 @@ impl Serialize for Commit<'_> {
 		commit.serialize_field("committer", &self.committer)?;
 		commit.serialize_field("conventional", &self.conv.is_some())?;
 		commit.serialize_field("merge_commit", &self.merge_commit)?;
+        	commit.serialize_field("merge_parents", &self.merge_parents)?;
 		commit.serialize_field("extra", &self.extra)?;
 		#[cfg(feature = "github")]
 		commit.serialize_field("github", &self.github)?;
